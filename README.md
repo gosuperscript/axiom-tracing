@@ -5,7 +5,7 @@ Opt-in resolution tracing for [gosuperscript/axiom](https://github.com/gosupersc
 ## Installation
 
 ```bash
-composer require superscript/axiom-tracing
+composer require gosuperscript/axiom-tracing
 ```
 
 ## Usage
