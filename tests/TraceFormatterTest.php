@@ -223,10 +223,10 @@ final class TraceFormatterTest extends TestCase
     {
         // Build a realistic tree:
         // TypeDefinition [NumberType] — ok, value: 150, 10ms
-        // └── InfixExpression [*] — ok, value: 150, 9ms
+        // └── InfixExpression [100 * 1.5] — ok, value: 150, 9ms
         //     ├── SymbolSource [base_rate] — ok, value: 100, 2ms
         //     │   └── StaticSource [static(int)] — ok, value: 100, 0.1ms
-        //     └── InfixExpression [+] — ok, value: 1.5, 6ms
+        //     └── InfixExpression [0.5 + 1] — ok, value: 1.5, 6ms
         //         ├── HttpSource — ok, value: 0.5, 5ms
         //         │   http_response: {"status":200,"body":{"factor":0.5}}
         //         └── StaticSource [static(int)] — ok, value: 1, 0.1ms
@@ -288,10 +288,10 @@ final class TraceFormatterTest extends TestCase
 
         $expected = implode("\n", [
             'TypeDefinition [NumberType] — ok, value: 150, 10ms',
-            '    └── InfixExpression [*] — ok, value: 150, 9ms',
+            '    └── InfixExpression [100 * 1.5] — ok, value: 150, 9ms',
             '        ├── SymbolSource [base_rate] — ok, value: 100, 2ms',
             '        │   └── StaticSource [static(int)] — ok, value: 100, 0.1ms',
-            '        └── InfixExpression [+] — ok, value: 1.5, 6ms',
+            '        └── InfixExpression [0.5 + 1] — ok, value: 1.5, 6ms',
             '            ├── HttpSource — ok, value: 0.5, 5ms',
             '            │   http_response: {"status":200,"body":{"factor":0.5}}',
             '            └── StaticSource [static(int)] — ok, value: 1, 0.1ms',
@@ -306,7 +306,7 @@ final class TraceFormatterTest extends TestCase
         // InfixExpression [+] — err, error: division by zero, 5ms
         // ├── StaticSource [static(int)] — ok, value: 10, 0.1ms
         // │   cache: hit
-        // └── InfixExpression [/] — err, error: division by zero, 4ms
+        // └── InfixExpression [1 / 0] — err, error: division by zero, 4ms
         //     ├── StaticSource [static(int)] — ok, value: 1, 0.1ms
         //     └── StaticSource [static(int)] — ok, value: 0, 0.1ms
 
@@ -352,7 +352,7 @@ final class TraceFormatterTest extends TestCase
             'InfixExpression [+] — err, error: division by zero, 5ms',
             '    ├── StaticSource [static(int)] — ok, value: 10, 0.1ms',
             '    │   cache: hit',
-            '    └── InfixExpression [/] — err, error: division by zero, 4ms',
+            '    └── InfixExpression [1 / 0] — err, error: division by zero, 4ms',
             '        ├── StaticSource [static(int)] — ok, value: 1, 0.1ms',
             '        └── StaticSource [static(int)] — ok, value: 0, 0.1ms',
         ]);

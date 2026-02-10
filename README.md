@@ -90,10 +90,10 @@ $httpResponse = $context->get('http_response');
 
 ```
 TypeDefinition [NumberType] — ok, value: 150, 52ms
-└── InfixExpression [*] — ok, value: 150, 51ms
+└── InfixExpression [100 * 1.5] — ok, value: 150, 51ms
     ├── SymbolSource [base_rate] — ok, value: 100, 3ms
     │   └── StaticSource [static(int)] — ok, value: 100, 0.01ms
-    └── InfixExpression [+] — ok, value: 1.5, 45ms
+    └── InfixExpression [0.5 + 1] — ok, value: 1.5, 45ms
         ├── StaticSource [static(float)] — ok, value: 0.5, 0.01ms
         └── StaticSource [static(int)] — ok, value: 1, 0.01ms
 ```

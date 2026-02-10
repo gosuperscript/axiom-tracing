@@ -20,11 +20,7 @@ final class TraceFormatter
 
         // Build the main line: SourceType [label] — outcome, value, duration
         $line = $connector . $this->shortName($node->sourceType);
-
-        if ($node->label() !== null) {
-            $line .= " [{$node->label()}]";
-        }
-
+        $line .= $this->buildLabel($node);
         $line .= $this->formatSummary($node);
 
         $lines = [$prefix . $line];
@@ -55,6 +51,35 @@ final class TraceFormatter
         return implode("\n", $lines);
     }
 
+    /**
+     * Build the bracketed label. For infix-like nodes (2 children, both
+     * with scalar values), show the expression: [left operator right].
+     */
+    private function buildLabel(ResolutionTrace $node): string
+    {
+        $label = $node->label();
+
+        if ($label === null) {
+            return '';
+        }
+
+        $children = $node->children();
+
+        if (count($children) === 2) {
+            $leftValue = $children[0]->getMetadata('value');
+            $rightValue = $children[1]->getMetadata('value');
+
+            if (is_scalar($leftValue) && is_scalar($rightValue)) {
+                $left = $this->displayValue($leftValue);
+                $right = $this->displayValue($rightValue);
+
+                return " [{$left} {$label} {$right}]";
+            }
+        }
+
+        return " [{$label}]";
+    }
+
     private function formatSummary(ResolutionTrace $node): string
     {
         $parts = [];
@@ -65,11 +90,7 @@ final class TraceFormatter
         }
 
         if (isset($meta['value'])) {
-            $value = $meta['value'];
-            $display = is_string($value) || is_int($value) || is_float($value)
-                ? (string) $value
-                : get_debug_type($value);
-            $parts[] = "value: {$display}";
+            $parts[] = "value: {$this->displayValue($meta['value'])}";
         }
 
         if (isset($meta['error'])) {
@@ -81,6 +102,13 @@ final class TraceFormatter
         }
 
         return $parts !== [] ? ' — ' . implode(', ', $parts) : '';
+    }
+
+    private function displayValue(mixed $value): string
+    {
+        return is_string($value) || is_int($value) || is_float($value)
+            ? (string) $value
+            : get_debug_type($value);
     }
 
     private function shortName(string $fqcn): string
