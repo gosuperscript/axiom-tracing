@@ -1,0 +1,30 @@
+{
+    "name": "superscript/axiom-tracing",
+    "description": "Opt-in resolution tracing for gosuperscript/axiom",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "gosuperscript/axiom": "dev-claude/add-resolution-inspector-BnCni as 0.2.99",
+        "gosuperscript/monads": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "webmozart/assert": "^2.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Superscript\\Axiom\\Tracing\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Superscript\\Axiom\\Tracing\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
