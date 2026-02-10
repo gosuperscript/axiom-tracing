@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Superscript\Axiom\Tracing;
 
 use Superscript\Axiom\ResolutionInspector;
-use Superscript\Axiom\Resolvers\DelegatingResolver;
+use Superscript\Axiom\Resolvers\BindableResolver;
 use Superscript\Axiom\Resolvers\Resolver;
 use Superscript\Axiom\Source;
 use Superscript\Monads\Result\Result;
@@ -20,7 +20,7 @@ final class TracingResolver implements Resolver
     private $onTrace = null;
 
     public function __construct(
-        private readonly DelegatingResolver $inner,
+        private readonly BindableResolver $inner,
     ) {
         $this->inspector = new TracingResolutionInspector();
 
