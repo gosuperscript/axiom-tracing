@@ -101,6 +101,6 @@ TypeDefinition [NumberType] — ok, value: 150, 52ms
 ## Testing
 
 ```bash
-composer install --ignore-platform-req=ext-bcmath
+composer install
 vendor/bin/phpunit
 ```
