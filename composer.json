@@ -1,5 +1,5 @@
 {
-    "name": "superscript/axiom-tracing",
+    "name": "gosuperscript/axiom-tracing",
     "description": "Opt-in resolution tracing for gosuperscript/axiom",
     "type": "library",
     "license": "MIT",
