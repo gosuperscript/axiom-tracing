@@ -4,7 +4,7 @@
     "type": "library",
     "license": "MIT",
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "gosuperscript/axiom": "dev-claude/add-resolution-inspector-BnCni as 0.2.99",
         "gosuperscript/monads": "^1.0"
     },
