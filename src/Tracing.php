@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Superscript\Axiom\Tracing;
 
-use Superscript\Axiom\Resolvers\DelegatingResolver;
+use Superscript\Axiom\Resolvers\BindableResolver;
 
 final class Tracing
 {
     /**
-     * Wrap a DelegatingResolver with tracing if enabled.
+     * Wrap a BindableResolver with tracing if enabled.
      * If disabled, returns the resolver untouched — no decorator,
      * no bindings, no overhead.
      */
     public static function wrap(
-        DelegatingResolver $resolver,
+        BindableResolver $resolver,
         bool $enabled = false,
-    ): DelegatingResolver|TracingResolver {
+    ): BindableResolver|TracingResolver {
         if (! $enabled) {
             return $resolver;
         }
