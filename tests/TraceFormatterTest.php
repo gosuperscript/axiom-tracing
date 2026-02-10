@@ -218,4 +218,145 @@ final class TraceFormatterTest extends TestCase
         $this->assertStringContainsString('├── Child2', $output);
         $this->assertStringContainsString('└── Child3', $output);
     }
+
+    public function test_full_ascii_output(): void
+    {
+        // Build a realistic tree:
+        // TypeDefinition [NumberType] — ok, value: 150, 10ms
+        // └── InfixExpression [*] — ok, value: 150, 9ms
+        //     ├── SymbolSource [base_rate] — ok, value: 100, 2ms
+        //     │   └── StaticSource [static(int)] — ok, value: 100, 0.1ms
+        //     └── InfixExpression [+] — ok, value: 1.5, 6ms
+        //         ├── HttpSource — ok, value: 0.5, 5ms
+        //         │   http_response: {"status":200,"body":{"factor":0.5}}
+        //         └── StaticSource [static(int)] — ok, value: 1, 0.1ms
+
+        $static100 = new ResolutionTrace('Superscript\\Axiom\\Sources\\StaticSource');
+        $static100->addMetadata('label', 'static(int)');
+        $static100->addMetadata('outcome', 'ok');
+        $static100->addMetadata('has_value', true);
+        $static100->addMetadata('value', 100);
+        $static100->addMetadata('duration_ms', 0.1);
+
+        $symbol = new ResolutionTrace('Superscript\\Axiom\\Sources\\SymbolSource');
+        $symbol->addMetadata('label', 'base_rate');
+        $symbol->addMetadata('outcome', 'ok');
+        $symbol->addMetadata('has_value', true);
+        $symbol->addMetadata('value', 100);
+        $symbol->addMetadata('duration_ms', 2.0);
+        $symbol->addChild($static100);
+
+        $http = new ResolutionTrace('App\\Sources\\HttpSource');
+        $http->addMetadata('outcome', 'ok');
+        $http->addMetadata('has_value', true);
+        $http->addMetadata('value', 0.5);
+        $http->addMetadata('duration_ms', 5.0);
+        $http->addMetadata('http_response', ['status' => 200, 'body' => ['factor' => 0.5]]);
+
+        $static1 = new ResolutionTrace('Superscript\\Axiom\\Sources\\StaticSource');
+        $static1->addMetadata('label', 'static(int)');
+        $static1->addMetadata('outcome', 'ok');
+        $static1->addMetadata('has_value', true);
+        $static1->addMetadata('value', 1);
+        $static1->addMetadata('duration_ms', 0.1);
+
+        $innerInfix = new ResolutionTrace('Superscript\\Axiom\\Sources\\InfixExpression');
+        $innerInfix->addMetadata('label', '+');
+        $innerInfix->addMetadata('outcome', 'ok');
+        $innerInfix->addMetadata('has_value', true);
+        $innerInfix->addMetadata('value', 1.5);
+        $innerInfix->addMetadata('duration_ms', 6.0);
+        $innerInfix->addChild($http);
+        $innerInfix->addChild($static1);
+
+        $outerInfix = new ResolutionTrace('Superscript\\Axiom\\Sources\\InfixExpression');
+        $outerInfix->addMetadata('label', '*');
+        $outerInfix->addMetadata('outcome', 'ok');
+        $outerInfix->addMetadata('has_value', true);
+        $outerInfix->addMetadata('value', 150);
+        $outerInfix->addMetadata('duration_ms', 9.0);
+        $outerInfix->addChild($symbol);
+        $outerInfix->addChild($innerInfix);
+
+        $root = new ResolutionTrace('Superscript\\Axiom\\Sources\\TypeDefinition');
+        $root->addMetadata('label', 'NumberType');
+        $root->addMetadata('outcome', 'ok');
+        $root->addMetadata('has_value', true);
+        $root->addMetadata('value', 150);
+        $root->addMetadata('duration_ms', 10.0);
+        $root->addChild($outerInfix);
+
+        $expected = implode("\n", [
+            'TypeDefinition [NumberType] — ok, value: 150, 10ms',
+            '    └── InfixExpression [*] — ok, value: 150, 9ms',
+            '        ├── SymbolSource [base_rate] — ok, value: 100, 2ms',
+            '        │   └── StaticSource [static(int)] — ok, value: 100, 0.1ms',
+            '        └── InfixExpression [+] — ok, value: 1.5, 6ms',
+            '            ├── HttpSource — ok, value: 0.5, 5ms',
+            '            │   http_response: {"status":200,"body":{"factor":0.5}}',
+            '            └── StaticSource [static(int)] — ok, value: 1, 0.1ms',
+        ]);
+
+        $this->assertSame($expected, $this->formatter->format($root));
+    }
+
+    public function test_full_ascii_output_with_error_and_custom_metadata(): void
+    {
+        // Tree with a mix of success, error, and custom metadata:
+        // InfixExpression [+] — err, error: division by zero, 5ms
+        // ├── StaticSource [static(int)] — ok, value: 10, 0.1ms
+        // │   cache: hit
+        // └── InfixExpression [/] — err, error: division by zero, 4ms
+        //     ├── StaticSource [static(int)] — ok, value: 1, 0.1ms
+        //     └── StaticSource [static(int)] — ok, value: 0, 0.1ms
+
+        $left = new ResolutionTrace('Superscript\\Axiom\\Sources\\StaticSource');
+        $left->addMetadata('label', 'static(int)');
+        $left->addMetadata('outcome', 'ok');
+        $left->addMetadata('has_value', true);
+        $left->addMetadata('value', 10);
+        $left->addMetadata('duration_ms', 0.1);
+        $left->addMetadata('cache', 'hit');
+
+        $divLeft = new ResolutionTrace('Superscript\\Axiom\\Sources\\StaticSource');
+        $divLeft->addMetadata('label', 'static(int)');
+        $divLeft->addMetadata('outcome', 'ok');
+        $divLeft->addMetadata('has_value', true);
+        $divLeft->addMetadata('value', 1);
+        $divLeft->addMetadata('duration_ms', 0.1);
+
+        $divRight = new ResolutionTrace('Superscript\\Axiom\\Sources\\StaticSource');
+        $divRight->addMetadata('label', 'static(int)');
+        $divRight->addMetadata('outcome', 'ok');
+        $divRight->addMetadata('has_value', true);
+        $divRight->addMetadata('value', 0);
+        $divRight->addMetadata('duration_ms', 0.1);
+
+        $divInfix = new ResolutionTrace('Superscript\\Axiom\\Sources\\InfixExpression');
+        $divInfix->addMetadata('label', '/');
+        $divInfix->addMetadata('outcome', 'err');
+        $divInfix->addMetadata('error', 'division by zero');
+        $divInfix->addMetadata('duration_ms', 4.0);
+        $divInfix->addChild($divLeft);
+        $divInfix->addChild($divRight);
+
+        $root = new ResolutionTrace('Superscript\\Axiom\\Sources\\InfixExpression');
+        $root->addMetadata('label', '+');
+        $root->addMetadata('outcome', 'err');
+        $root->addMetadata('error', 'division by zero');
+        $root->addMetadata('duration_ms', 5.0);
+        $root->addChild($left);
+        $root->addChild($divInfix);
+
+        $expected = implode("\n", [
+            'InfixExpression [+] — err, error: division by zero, 5ms',
+            '    ├── StaticSource [static(int)] — ok, value: 10, 0.1ms',
+            '    │   cache: hit',
+            '    └── InfixExpression [/] — err, error: division by zero, 4ms',
+            '        ├── StaticSource [static(int)] — ok, value: 1, 0.1ms',
+            '        └── StaticSource [static(int)] — ok, value: 0, 0.1ms',
+        ]);
+
+        $this->assertSame($expected, $this->formatter->format($root));
+    }
 }
