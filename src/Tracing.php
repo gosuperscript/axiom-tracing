@@ -16,7 +16,7 @@ final class Tracing
     public static function wrap(
         BindableResolver $resolver,
         bool $enabled = false,
-    ): BindableResolver|TracingResolver {
+    ): BindableResolver {
         if (! $enabled) {
             return $resolver;
         }

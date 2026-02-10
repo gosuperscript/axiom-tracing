@@ -10,7 +10,7 @@ use Superscript\Axiom\Resolvers\Resolver;
 use Superscript\Axiom\Source;
 use Superscript\Monads\Result\Result;
 
-final class TracingResolver implements Resolver
+final class TracingResolver implements BindableResolver
 {
     private ?ResolutionTrace $root = null;
     private int $depth = 0;
@@ -40,6 +40,12 @@ final class TracingResolver implements Resolver
         // Replace any existing ResolutionInspector with our tree-aware
         // version. Resolver annotations now land on trace nodes.
         $this->inner->instance(ResolutionInspector::class, $this->inspector);
+    }
+
+    /** @param class-string $key */
+    public function instance(string $key, mixed $concrete): void
+    {
+        $this->inner->instance($key, $concrete);
     }
 
     /**
