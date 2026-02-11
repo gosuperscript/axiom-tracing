@@ -11,12 +11,14 @@ use Superscript\Axiom\Resolvers\InfixResolver;
 use Superscript\Axiom\Resolvers\Resolver;
 use Superscript\Axiom\Resolvers\StaticResolver;
 use Superscript\Axiom\Resolvers\SymbolResolver;
+use Superscript\Axiom\Resolvers\UnaryResolver;
 use Superscript\Axiom\Resolvers\ValueResolver;
 use Superscript\Axiom\Source;
 use Superscript\Axiom\Sources\InfixExpression;
 use Superscript\Axiom\Sources\StaticSource;
 use Superscript\Axiom\Sources\SymbolSource;
 use Superscript\Axiom\Sources\TypeDefinition;
+use Superscript\Axiom\Sources\UnaryExpression;
 use Superscript\Axiom\SymbolRegistry;
 use Superscript\Axiom\Tracing\TracedResult;
 use Superscript\Axiom\Tracing\TracingResolver;
@@ -31,6 +33,7 @@ final class TracingResolverTest extends TestCase
         $delegating = new DelegatingResolver([
             StaticSource::class => StaticResolver::class,
             InfixExpression::class => InfixResolver::class,
+            UnaryExpression::class => UnaryResolver::class,
             SymbolSource::class => SymbolResolver::class,
             TypeDefinition::class => ValueResolver::class,
         ]);
@@ -340,6 +343,85 @@ final class TracingResolverTest extends TestCase
         );
 
         $this->assertSame('*', $traced->trace->label());
+    }
+
+    public function test_infix_resolver_annotates_result_with_computed_value(): void
+    {
+        $tracer = $this->createResolver();
+
+        $traced = $tracer->traced(
+            new InfixExpression(
+                new StaticSource(4),
+                '*',
+                new StaticSource(3),
+            )
+        );
+
+        $this->assertSame(12, $traced->trace->getMetadata('result'));
+    }
+
+    public function test_unary_resolver_annotates_result_with_computed_value(): void
+    {
+        $tracer = $this->createResolver();
+
+        $traced = $tracer->traced(
+            new UnaryExpression('-', new StaticSource(7))
+        );
+
+        $this->assertSame(-7, $traced->trace->getMetadata('result'));
+    }
+
+    public function test_symbol_resolver_annotates_result_with_resolved_value(): void
+    {
+        $tracer = $this->createResolver([
+            'rate' => new StaticSource(2),
+        ]);
+
+        $traced = $tracer->traced(new SymbolSource('rate'));
+
+        $this->assertSame(2, $traced->trace->getMetadata('result'));
+    }
+
+    public function test_result_annotation_appears_in_summary_instead_of_value(): void
+    {
+        $tracer = $this->createResolver();
+
+        $traced = $tracer->traced(
+            new InfixExpression(
+                new StaticSource(5),
+                '+',
+                new StaticSource(3),
+            )
+        );
+
+        $dump = $traced->dump();
+        $lines = explode("\n", $dump);
+
+        // Root InfixExpression summary uses 'result' (resolver-annotated)
+        $this->assertStringContainsString('result: 8', $lines[0]);
+        // StaticSource children use 'value' (auto-captured, no resolver annotation)
+        $this->assertStringContainsString('value: 5', $lines[1]);
+        $this->assertStringContainsString('value: 3', $lines[2]);
+    }
+
+    public function test_result_annotation_is_collectible_across_tree(): void
+    {
+        $tracer = $this->createResolver([
+            'x' => new StaticSource(10),
+        ]);
+
+        $traced = $tracer->traced(
+            new InfixExpression(
+                new SymbolSource('x'),
+                '+',
+                new StaticSource(5),
+            )
+        );
+
+        // InfixResolver and SymbolResolver both annotate 'result'
+        $results = $traced->trace->collect('result');
+        $this->assertContains(15, $results);  // infix computed result
+        $this->assertContains(10, $results);  // symbol resolved value
     }
 
     // ---------------------------------------------------------------
