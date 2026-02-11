@@ -165,6 +165,35 @@ final class TraceFormatterTest extends TestCase
         $this->assertStringNotContainsString('value:', $output);
     }
 
+    public function test_result_metadata_is_preferred_over_value_in_summary(): void
+    {
+        $node = new ResolutionTrace('App\\InfixExpression');
+        $node->addMetadata('label', '+');
+        $node->addMetadata('outcome', 'ok');
+        $node->addMetadata('has_value', true);
+        $node->addMetadata('result', 30);
+        $node->addMetadata('duration_ms', 1.0);
+
+        $output = $this->formatter->format($node);
+
+        // 'result' is shown in the summary line instead of 'value'
+        $this->assertStringContainsString('result: 30', $output);
+    }
+
+    public function test_value_metadata_shown_when_no_result(): void
+    {
+        $node = new ResolutionTrace('App\\StaticSource');
+        $node->addMetadata('label', 'static(int)');
+        $node->addMetadata('outcome', 'ok');
+        $node->addMetadata('has_value', true);
+        $node->addMetadata('value', 42);
+        $node->addMetadata('duration_ms', 0.01);
+
+        $output = $this->formatter->format($node);
+
+        $this->assertStringContainsString('value: 42', $output);
+    }
+
     public function test_string_metadata_values_not_json_encoded(): void
     {
         $node = new ResolutionTrace('App\\Source');
@@ -223,10 +252,10 @@ final class TraceFormatterTest extends TestCase
     {
         // Build a realistic tree:
         // TypeDefinition [NumberType] — ok, value: 150, 10ms
-        // └── InfixExpression [*] — ok, value: 150, 9ms
-        //     ├── SymbolSource [base_rate] — ok, value: 100, 2ms
+        // └── InfixExpression [*] — ok, result: 150, 9ms
+        //     ├── SymbolSource [base_rate] — ok, result: 100, 2ms
         //     │   └── StaticSource [static(int)] — ok, value: 100, 0.1ms
-        //     └── InfixExpression [+] — ok, value: 1.5, 6ms
+        //     └── InfixExpression [+] — ok, result: 1.5, 6ms
         //         ├── HttpSource — ok, value: 0.5, 5ms
         //         │   http_response: {"status":200,"body":{"factor":0.5}}
         //         └── StaticSource [static(int)] — ok, value: 1, 0.1ms
@@ -242,7 +271,7 @@ final class TraceFormatterTest extends TestCase
         $symbol->addMetadata('label', 'base_rate');
         $symbol->addMetadata('outcome', 'ok');
         $symbol->addMetadata('has_value', true);
-        $symbol->addMetadata('value', 100);
+        $symbol->addMetadata('result', 100);
         $symbol->addMetadata('duration_ms', 2.0);
         $symbol->addChild($static100);
 
@@ -264,7 +293,7 @@ final class TraceFormatterTest extends TestCase
         $innerInfix->addMetadata('label', '+');
         $innerInfix->addMetadata('outcome', 'ok');
         $innerInfix->addMetadata('has_value', true);
-        $innerInfix->addMetadata('value', 1.5);
+        $innerInfix->addMetadata('result', 1.5);
         $innerInfix->addMetadata('duration_ms', 6.0);
         $innerInfix->addChild($http);
         $innerInfix->addChild($static1);
@@ -273,7 +302,7 @@ final class TraceFormatterTest extends TestCase
         $outerInfix->addMetadata('label', '*');
         $outerInfix->addMetadata('outcome', 'ok');
         $outerInfix->addMetadata('has_value', true);
-        $outerInfix->addMetadata('value', 150);
+        $outerInfix->addMetadata('result', 150);
         $outerInfix->addMetadata('duration_ms', 9.0);
         $outerInfix->addChild($symbol);
         $outerInfix->addChild($innerInfix);
@@ -288,10 +317,10 @@ final class TraceFormatterTest extends TestCase
 
         $expected = implode("\n", [
             'TypeDefinition [NumberType] — ok, value: 150, 10ms',
-            '    └── InfixExpression [*] — ok, value: 150, 9ms',
-            '        ├── SymbolSource [base_rate] — ok, value: 100, 2ms',
+            '    └── InfixExpression [*] — ok, result: 150, 9ms',
+            '        ├── SymbolSource [base_rate] — ok, result: 100, 2ms',
             '        │   └── StaticSource [static(int)] — ok, value: 100, 0.1ms',
-            '        └── InfixExpression [+] — ok, value: 1.5, 6ms',
+            '        └── InfixExpression [+] — ok, result: 1.5, 6ms',
             '            ├── HttpSource — ok, value: 0.5, 5ms',
             '            │   http_response: {"status":200,"body":{"factor":0.5}}',
             '            └── StaticSource [static(int)] — ok, value: 1, 0.1ms',

@@ -30,7 +30,7 @@ final class TraceFormatter
         $lines = [$prefix . $line];
 
         // Add non-generic metadata (skip the ones already in the summary)
-        $genericKeys = ['label', 'duration_ms', 'outcome', 'has_value', 'value', 'error'];
+        $genericKeys = ['label', 'duration_ms', 'outcome', 'has_value', 'value', 'error', 'result'];
 
         foreach ($node->metadata() as $key => $value) {
             if (in_array($key, $genericKeys, true)) {
@@ -64,12 +64,13 @@ final class TraceFormatter
             $parts[] = $meta['outcome'];
         }
 
-        if (isset($meta['value'])) {
-            $value = $meta['value'];
+        if (isset($meta['result']) || isset($meta['value'])) {
+            $value = $meta['result'] ?? $meta['value'];
             $display = is_string($value) || is_int($value) || is_float($value)
                 ? (string) $value
                 : get_debug_type($value);
-            $parts[] = "value: {$display}";
+            $key = isset($meta['result']) ? 'result' : 'value';
+            $parts[] = "{$key}: {$display}";
         }
 
         if (isset($meta['error'])) {

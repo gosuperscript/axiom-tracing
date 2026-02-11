@@ -106,9 +106,11 @@ final class TracingResolver implements BindableResolver
             $option = $result->unwrap();
             $node->addMetadata('has_value', $option->isSome());
 
-            if ($option->isSome()) {
+            if ($option->isSome() && $node->getMetadata('result') === null) {
                 $value = $option->unwrap();
-                // Store scalar values directly, objects by class name
+                // Store scalar values directly, objects by class name.
+                // Skip when the resolver already annotated 'result' —
+                // it carries the same value and takes precedence.
                 $node->addMetadata('value', is_object($value)
                     ? $value::class
                     : $value
