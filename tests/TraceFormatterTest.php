@@ -359,4 +359,49 @@ final class TraceFormatterTest extends TestCase
 
         $this->assertSame($expected, $this->formatter->format($root));
     }
+
+    public function test_boolean_value_displays_true_and_false(): void
+    {
+        $trueNode = new ResolutionTrace('App\\Source');
+        $trueNode->addMetadata('outcome', 'ok');
+        $trueNode->addMetadata('has_value', true);
+        $trueNode->addMetadata('value', true);
+        $trueNode->addMetadata('duration_ms', 0.1);
+
+        $falseNode = new ResolutionTrace('App\\Source');
+        $falseNode->addMetadata('outcome', 'ok');
+        $falseNode->addMetadata('has_value', true);
+        $falseNode->addMetadata('value', false);
+        $falseNode->addMetadata('duration_ms', 0.1);
+
+        $trueOutput = $this->formatter->format($trueNode);
+        $falseOutput = $this->formatter->format($falseNode);
+
+        $this->assertStringContainsString('value: true', $trueOutput);
+        $this->assertStringNotContainsString('value: bool', $trueOutput);
+        $this->assertStringContainsString('value: false', $falseOutput);
+        $this->assertStringNotContainsString('value: bool', $falseOutput);
+    }
+
+    public function test_duration_rounding(): void
+    {
+        $nodeOver1ms = new ResolutionTrace('App\\Source');
+        $nodeOver1ms->addMetadata('outcome', 'ok');
+        $nodeOver1ms->addMetadata('has_value', true);
+        $nodeOver1ms->addMetadata('value', 1);
+        $nodeOver1ms->addMetadata('duration_ms', 27.186);
+
+        $nodeSub1ms = new ResolutionTrace('App\\Source');
+        $nodeSub1ms->addMetadata('outcome', 'ok');
+        $nodeSub1ms->addMetadata('has_value', true);
+        $nodeSub1ms->addMetadata('value', 1);
+        $nodeSub1ms->addMetadata('duration_ms', 0.0163);
+
+        $overOutput = $this->formatter->format($nodeOver1ms);
+        $subOutput = $this->formatter->format($nodeSub1ms);
+
+        $this->assertStringContainsString('27ms', $overOutput);
+        $this->assertStringNotContainsString('27.186ms', $overOutput);
+        $this->assertStringContainsString('0.016ms', $subOutput);
+    }
 }

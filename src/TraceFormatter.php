@@ -66,9 +66,11 @@ final class TraceFormatter
 
         if (isset($meta['value'])) {
             $value = $meta['value'];
-            $display = is_string($value) || is_int($value) || is_float($value)
-                ? (string) $value
-                : get_debug_type($value);
+            $display = match (true) {
+                is_bool($value) => $value ? 'true' : 'false',
+                is_string($value), is_int($value), is_float($value) => (string) $value,
+                default => get_debug_type($value),
+            };
             $parts[] = "value: {$display}";
         }
 
@@ -77,7 +79,9 @@ final class TraceFormatter
         }
 
         if (isset($meta['duration_ms'])) {
-            $parts[] = "{$meta['duration_ms']}ms";
+            $duration = $meta['duration_ms'];
+            $formatted = $duration >= 1 ? round($duration) . 'ms' : round($duration, 3) . 'ms';
+            $parts[] = $formatted;
         }
 
         return $parts !== [] ? ' — ' . implode(', ', $parts) : '';
