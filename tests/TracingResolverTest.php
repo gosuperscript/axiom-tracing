@@ -6,6 +6,8 @@ namespace Superscript\Axiom\Tracing\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Superscript\Axiom\Operators\DefaultOverloader;
+use Superscript\Axiom\Operators\OperatorOverloader;
 use Superscript\Axiom\Resolvers\DelegatingResolver;
 use Superscript\Axiom\Resolvers\InfixResolver;
 use Superscript\Axiom\Resolvers\Resolver;
@@ -34,6 +36,8 @@ final class TracingResolverTest extends TestCase
             SymbolSource::class => SymbolResolver::class,
             TypeDefinition::class => ValueResolver::class,
         ]);
+
+        $delegating->instance(OperatorOverloader::class, new DefaultOverloader());
 
         if ($symbols !== []) {
             $delegating->instance(SymbolRegistry::class, new SymbolRegistry($symbols));

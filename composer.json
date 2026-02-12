@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "gosuperscript/axiom": "^0.2.3",
+        "gosuperscript/axiom": "^0.3.0",
         "gosuperscript/monads": "^1.0"
     },
     "require-dev": {
