@@ -30,7 +30,7 @@ final class TraceFormatter
         $lines = [$prefix . $line];
 
         // Add non-generic metadata (skip the ones already in the summary)
-        $genericKeys = ['label', 'duration_ms', 'outcome', 'has_value', 'value', 'error'];
+        $genericKeys = ['label', 'timestamp', 'duration_ms', 'outcome', 'has_value', 'value', 'error'];
 
         foreach ($node->metadata() as $key => $value) {
             if (in_array($key, $genericKeys, true)) {

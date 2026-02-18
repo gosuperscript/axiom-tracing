@@ -219,6 +219,20 @@ final class TracingResolverTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $duration);
     }
 
+    public function test_timestamp_is_a_unix_timestamp(): void
+    {
+        $before = (int) microtime(true);
+        $tracer = $this->createResolver();
+
+        $traced = $tracer->traced(new StaticSource(1));
+        $after = (int) microtime(true);
+
+        $timestamp = $traced->trace->getMetadata('timestamp');
+        $this->assertIsInt($timestamp);
+        $this->assertGreaterThanOrEqual($before, $timestamp);
+        $this->assertLessThanOrEqual($after, $timestamp);
+    }
+
     public function test_error_resolution_has_error_metadata(): void
     {
         $tracer = $this->createResolver();
@@ -553,6 +567,7 @@ final class TracingResolverTest extends TestCase
     private function assertNodeHasGenericMetadata(ResolutionTrace $node): void
     {
         $meta = $node->metadata();
+        $this->assertArrayHasKey('timestamp', $meta, "Node {$node->sourceType} missing timestamp");
         $this->assertArrayHasKey('duration_ms', $meta, "Node {$node->sourceType} missing duration_ms");
         $this->assertArrayHasKey('outcome', $meta, "Node {$node->sourceType} missing outcome");
         $this->assertArrayHasKey('has_value', $meta, "Node {$node->sourceType} missing has_value");
