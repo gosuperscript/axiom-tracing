@@ -87,6 +87,7 @@ final class TraceFormatterTest extends TestCase
         $node->addMetadata('outcome', 'ok');
         $node->addMetadata('has_value', true);
         $node->addMetadata('value', 'response');
+        $node->addMetadata('timestamp', 10000);
         $node->addMetadata('duration_ms', 100.0);
         $node->addMetadata('http_response', ['status' => 200, 'body' => 'ok']);
 
@@ -115,6 +116,7 @@ final class TraceFormatterTest extends TestCase
         $root->addMetadata('outcome', 'ok');
         $root->addMetadata('has_value', true);
         $root->addMetadata('value', 1);
+        $root->addMetadata('timestamp', 1000);
         $root->addMetadata('duration_ms', 10.0);
 
         $current = $root;
@@ -123,6 +125,7 @@ final class TraceFormatterTest extends TestCase
             $child->addMetadata('outcome', 'ok');
             $child->addMetadata('has_value', true);
             $child->addMetadata('value', $i);
+            $child->addMetadata('timestamp', 1000);
             $child->addMetadata('duration_ms', 1.0);
             $current->addChild($child);
             $current = $child;
@@ -187,24 +190,28 @@ final class TraceFormatterTest extends TestCase
         $root->addMetadata('outcome', 'ok');
         $root->addMetadata('has_value', true);
         $root->addMetadata('value', 1);
+        $root->addMetadata('timestamp', 1000);
         $root->addMetadata('duration_ms', 10.0);
 
         $child1 = new ResolutionTrace('Child1');
         $child1->addMetadata('outcome', 'ok');
         $child1->addMetadata('has_value', true);
         $child1->addMetadata('value', 1);
+        $root->addMetadata('timestamp', 1000);
         $child1->addMetadata('duration_ms', 1.0);
 
         $child2 = new ResolutionTrace('Child2');
         $child2->addMetadata('outcome', 'ok');
         $child2->addMetadata('has_value', true);
         $child2->addMetadata('value', 2);
+        $root->addMetadata('timestamp', 1000);
         $child2->addMetadata('duration_ms', 1.0);
 
         $child3 = new ResolutionTrace('Child3');
         $child3->addMetadata('outcome', 'ok');
         $child3->addMetadata('has_value', true);
         $child3->addMetadata('value', 3);
+        $root->addMetadata('timestamp', 1000);
         $child3->addMetadata('duration_ms', 1.0);
 
         $root->addChild($child1);
@@ -236,6 +243,7 @@ final class TraceFormatterTest extends TestCase
         $static100->addMetadata('outcome', 'ok');
         $static100->addMetadata('has_value', true);
         $static100->addMetadata('value', 100);
+        $static100->addMetadata('timestamp', 1000);
         $static100->addMetadata('duration_ms', 0.1);
 
         $symbol = new ResolutionTrace('Superscript\\Axiom\\Sources\\SymbolSource');
@@ -243,6 +251,7 @@ final class TraceFormatterTest extends TestCase
         $symbol->addMetadata('outcome', 'ok');
         $symbol->addMetadata('has_value', true);
         $symbol->addMetadata('value', 100);
+        $symbol->addMetadata('timestamp', 2000);
         $symbol->addMetadata('duration_ms', 2.0);
         $symbol->addChild($static100);
 
@@ -250,6 +259,7 @@ final class TraceFormatterTest extends TestCase
         $http->addMetadata('outcome', 'ok');
         $http->addMetadata('has_value', true);
         $http->addMetadata('value', 0.5);
+        $http->addMetadata('timestamp', 3000);
         $http->addMetadata('duration_ms', 5.0);
         $http->addMetadata('http_response', ['status' => 200, 'body' => ['factor' => 0.5]]);
 
@@ -258,6 +268,7 @@ final class TraceFormatterTest extends TestCase
         $static1->addMetadata('outcome', 'ok');
         $static1->addMetadata('has_value', true);
         $static1->addMetadata('value', 1);
+        $static1->addMetadata('timestamp', 3000);
         $static1->addMetadata('duration_ms', 0.1);
 
         $innerInfix = new ResolutionTrace('Superscript\\Axiom\\Sources\\InfixExpression');
@@ -265,6 +276,7 @@ final class TraceFormatterTest extends TestCase
         $innerInfix->addMetadata('outcome', 'ok');
         $innerInfix->addMetadata('has_value', true);
         $innerInfix->addMetadata('value', 1.5);
+        $innerInfix->addMetadata('timestamp', 4000);
         $innerInfix->addMetadata('duration_ms', 6.0);
         $innerInfix->addChild($http);
         $innerInfix->addChild($static1);
@@ -274,6 +286,7 @@ final class TraceFormatterTest extends TestCase
         $outerInfix->addMetadata('outcome', 'ok');
         $outerInfix->addMetadata('has_value', true);
         $outerInfix->addMetadata('value', 150);
+        $outerInfix->addMetadata('timestamp', 5000);
         $outerInfix->addMetadata('duration_ms', 9.0);
         $outerInfix->addChild($symbol);
         $outerInfix->addChild($innerInfix);
@@ -283,6 +296,7 @@ final class TraceFormatterTest extends TestCase
         $root->addMetadata('outcome', 'ok');
         $root->addMetadata('has_value', true);
         $root->addMetadata('value', 150);
+        $root->addMetadata('timestamp', 6000);
         $root->addMetadata('duration_ms', 10.0);
         $root->addChild($outerInfix);
 
