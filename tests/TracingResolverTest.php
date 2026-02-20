@@ -219,16 +219,16 @@ final class TracingResolverTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $duration);
     }
 
-    public function test_timestamp_is_a_unix_timestamp(): void
+    public function test_timestamp_is_a_microtime_float(): void
     {
-        $before = (int) microtime(true);
+        $before = microtime(true);
         $tracer = $this->createResolver();
 
         $traced = $tracer->traced(new StaticSource(1));
-        $after = (int) microtime(true);
+        $after = microtime(true);
 
         $timestamp = $traced->trace->getMetadata('timestamp');
-        $this->assertIsInt($timestamp);
+        $this->assertIsFloat($timestamp);
         $this->assertGreaterThanOrEqual($before, $timestamp);
         $this->assertLessThanOrEqual($after, $timestamp);
     }

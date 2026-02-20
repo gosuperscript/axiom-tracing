@@ -99,7 +99,7 @@ final class TracingResolver implements BindableResolver
         $duration = (microtime(true) - $start) * 1000;
 
         // Generic metadata — captured for every node automatically
-        $node->addMetadata('timestamp', (int) $start);
+        $node->addMetadata('timestamp', $start);
         $node->addMetadata('duration_ms', round($duration, 3));
         $node->addMetadata('outcome', $result->isOk() ? 'ok' : 'err');
 
