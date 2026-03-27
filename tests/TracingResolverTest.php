@@ -552,6 +552,21 @@ final class TracingResolverTest extends TestCase
         $this->assertContains('+', $labels);
     }
 
+    public function test_get_delegates_to_inner_resolver(): void
+    {
+        $tracer = $this->createResolver();
+
+        $this->assertInstanceOf(TracingResolver::class, $tracer->get(Resolver::class));
+    }
+
+    public function test_has_delegates_to_inner_resolver(): void
+    {
+        $tracer = $this->createResolver();
+
+        $this->assertTrue($tracer->has(Resolver::class));
+        $this->assertFalse($tracer->has('non.existent.key'));
+    }
+
     public function test_multiple_sequential_resolutions_produce_independent_trees(): void
     {
         $tracer = $this->createResolver();

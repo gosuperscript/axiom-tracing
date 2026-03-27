@@ -48,6 +48,16 @@ final class TracingResolver implements BindableResolver
         $this->inner->instance($key, $concrete);
     }
 
+    public function get(string $id): mixed
+    {
+        return $this->inner->get($id);
+    }
+
+    public function has(string $id): bool
+    {
+        return $this->inner->has($id);
+    }
+
     /**
      * Register a callback that fires whenever a top-level resolution
      * completes. This is how you consume traces without changing
