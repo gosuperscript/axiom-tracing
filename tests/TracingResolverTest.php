@@ -6,6 +6,8 @@ namespace Superscript\Axiom\Tracing\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Superscript\Axiom\Context;
+use Superscript\Axiom\Definitions;
 use Superscript\Axiom\Operators\DefaultOverloader;
 use Superscript\Axiom\Operators\OperatorOverloader;
 use Superscript\Axiom\Resolvers\DelegatingResolver;
@@ -19,7 +21,6 @@ use Superscript\Axiom\Sources\InfixExpression;
 use Superscript\Axiom\Sources\StaticSource;
 use Superscript\Axiom\Sources\SymbolSource;
 use Superscript\Axiom\Sources\TypeDefinition;
-use Superscript\Axiom\SymbolRegistry;
 use Superscript\Axiom\Tracing\TracedResult;
 use Superscript\Axiom\Tracing\TracingResolver;
 use Superscript\Axiom\Tracing\ResolutionTrace;
@@ -28,7 +29,7 @@ use Superscript\Axiom\Types\StringType;
 
 final class TracingResolverTest extends TestCase
 {
-    private function createResolver(array $symbols = []): TracingResolver
+    private function createResolver(): TracingResolver
     {
         $delegating = new DelegatingResolver([
             StaticSource::class => StaticResolver::class,
@@ -39,11 +40,15 @@ final class TracingResolverTest extends TestCase
 
         $delegating->instance(OperatorOverloader::class, new DefaultOverloader());
 
-        if ($symbols !== []) {
-            $delegating->instance(SymbolRegistry::class, new SymbolRegistry($symbols));
-        }
-
         return new TracingResolver($delegating);
+    }
+
+    /**
+     * @param array<string, Source> $definitions
+     */
+    private function context(array $definitions = []): Context
+    {
+        return new Context(definitions: new Definitions($definitions));
     }
 
     // ---------------------------------------------------------------
@@ -121,11 +126,12 @@ final class TracingResolverTest extends TestCase
 
     public function test_symbol_resolution_produces_correct_tree(): void
     {
-        $tracer = $this->createResolver([
-            'rate' => new StaticSource(100),
-        ]);
+        $tracer = $this->createResolver();
 
-        $traced = $tracer->traced(new SymbolSource('rate'));
+        $traced = $tracer->traced(
+            new SymbolSource('rate'),
+            $this->context(['rate' => new StaticSource(100)]),
+        );
 
         $this->assertSame(SymbolSource::class, $traced->trace->sourceType);
         $this->assertCount(1, $traced->trace->children());
@@ -336,11 +342,12 @@ final class TracingResolverTest extends TestCase
 
     public function test_symbol_resolver_annotates_label(): void
     {
-        $tracer = $this->createResolver([
-            'base_rate' => new StaticSource(100),
-        ]);
+        $tracer = $this->createResolver();
 
-        $traced = $tracer->traced(new SymbolSource('base_rate'));
+        $traced = $tracer->traced(
+            new SymbolSource('base_rate'),
+            $this->context(['base_rate' => new StaticSource(100)]),
+        );
 
         $this->assertSame('base_rate', $traced->trace->label());
     }
@@ -373,8 +380,8 @@ final class TracingResolverTest extends TestCase
             $traces[] = $traced;
         });
 
-        $tracer->resolve(new StaticSource(1));
-        $tracer->resolve(new StaticSource(2));
+        $tracer->resolve(new StaticSource(1), new Context());
+        $tracer->resolve(new StaticSource(2), new Context());
 
         $this->assertCount(2, $traces);
     }
@@ -395,7 +402,8 @@ final class TracingResolverTest extends TestCase
                 new StaticSource(1),
                 '+',
                 new StaticSource(2),
-            )
+            ),
+            new Context(),
         );
 
         $this->assertSame(1, $callCount);
@@ -415,7 +423,8 @@ final class TracingResolverTest extends TestCase
                 new StaticSource(10),
                 '+',
                 new StaticSource(20),
-            )
+            ),
+            new Context(),
         );
 
         $this->assertNotNull($captured);
@@ -449,7 +458,7 @@ final class TracingResolverTest extends TestCase
         $tracer->traced(new StaticSource(1));
 
         // The original callback should be restored
-        $tracer->resolve(new StaticSource(2));
+        $tracer->resolve(new StaticSource(2), new Context());
         $this->assertTrue($callbackFired);
     }
 
@@ -461,7 +470,7 @@ final class TracingResolverTest extends TestCase
     {
         $tracer = $this->createResolver();
 
-        $result = $tracer->resolve(new StaticSource(42));
+        $result = $tracer->resolve(new StaticSource(42), new Context());
 
         $this->assertTrue($result->isOk());
         $this->assertSame(42, $result->unwrap()->unwrap());
@@ -476,7 +485,8 @@ final class TracingResolverTest extends TestCase
                 new StaticSource(10),
                 '+',
                 new StaticSource(20),
-            )
+            ),
+            new Context(),
         );
 
         $this->assertTrue($result->isOk());
@@ -488,7 +498,8 @@ final class TracingResolverTest extends TestCase
         $tracer = $this->createResolver();
 
         $result = $tracer->resolve(
-            new TypeDefinition(new NumberType(), new StaticSource(42))
+            new TypeDefinition(new NumberType(), new StaticSource(42)),
+            new Context(),
         );
 
         $this->assertTrue($result->isOk());
@@ -497,11 +508,12 @@ final class TracingResolverTest extends TestCase
 
     public function test_resolve_returns_correct_result_for_symbol(): void
     {
-        $tracer = $this->createResolver([
-            'price' => new StaticSource(99),
-        ]);
+        $tracer = $this->createResolver();
 
-        $result = $tracer->resolve(new SymbolSource('price'));
+        $result = $tracer->resolve(
+            new SymbolSource('price'),
+            $this->context(['price' => new StaticSource(99)]),
+        );
 
         $this->assertTrue($result->isOk());
         $this->assertSame(99, $result->unwrap()->unwrap());
@@ -521,7 +533,7 @@ final class TracingResolverTest extends TestCase
 
         // Resolving a source type with no registered resolver should throw
         $this->expectException(RuntimeException::class);
-        $tracer->resolve(new SymbolSource('unknown'));
+        $tracer->resolve(new SymbolSource('unknown'), new Context());
     }
 
     public function test_single_node_tree(): void
