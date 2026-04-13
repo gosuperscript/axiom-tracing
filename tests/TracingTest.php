@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Superscript\Axiom\Tracing\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Superscript\Axiom\Context;
 use Superscript\Axiom\Resolvers\DelegatingResolver;
 use Superscript\Axiom\Resolvers\StaticResolver;
 use Superscript\Axiom\Sources\StaticSource;
@@ -56,7 +57,7 @@ final class TracingTest extends TestCase
         $resolver = Tracing::wrap($delegating, enabled: false);
 
         // Should work normally — no tracing overhead
-        $result = $resolver->resolve(new StaticSource(42));
+        $result = $resolver->resolve(new StaticSource(42), new Context());
 
         $this->assertTrue($result->isOk());
         $this->assertSame(42, $result->unwrap()->unwrap());

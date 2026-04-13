@@ -8,11 +8,14 @@ Opt-in resolution tracing for [gosuperscript/axiom](https://github.com/gosupersc
 composer require gosuperscript/axiom-tracing
 ```
 
+Requires `gosuperscript/axiom ^0.4.0`.
+
 ## Usage
 
 ### Conditional tracing with callback
 
 ```php
+use Superscript\Axiom\Context;
 use Superscript\Axiom\Resolvers\DelegatingResolver;
 use Superscript\Axiom\Tracing\Tracing;
 use Superscript\Axiom\Tracing\TracedResult;
@@ -30,18 +33,28 @@ if ($resolver instanceof TracingResolver) {
     });
 }
 
-// Calling code is unchanged
-$result = $resolver->resolve($source);
+// Calling code is unchanged — resolve takes a Source and a Context.
+$result = $resolver->resolve($source, new Context());
+```
+
+### Tracing an Expression
+
+```php
+use Superscript\Axiom\Expression;
+
+$expression = new Expression($source, $resolver);
+$result = $expression(['radius' => 5]); // fires the trace callback
 ```
 
 ### Explicit trace retrieval
 
 ```php
+use Superscript\Axiom\Context;
 use Superscript\Axiom\Tracing\TracingResolver;
 
 $tracer = new TracingResolver($delegatingResolver);
 
-$traced = $tracer->traced($source);
+$traced = $tracer->traced($source); // optionally pass a Context with bindings/definitions
 $traced->result;  // Result<Option<T>>
 $traced->trace;   // ResolutionTrace tree
 $traced->dump();  // formatted string
@@ -61,17 +74,17 @@ foreach ($traced->trace->children() as $child) {
 
 ### Production use (flat inspector, no tracing)
 
-For extracting resolver metadata without full tracing overhead:
+For extracting resolver metadata without full tracing overhead, pass a flat
+inspector via the `Context`:
 
 ```php
+use Superscript\Axiom\Context;
 use Superscript\Axiom\Tracing\ResolutionContext;
-use Superscript\Axiom\ResolutionInspector;
 
-$context = new ResolutionContext();
-$resolver->instance(ResolutionInspector::class, $context);
+$inspector = new ResolutionContext();
 
-$result = $resolver->resolve($source);
-$httpResponse = $context->get('http_response');
+$result = $resolver->resolve($source, new Context(inspector: $inspector));
+$httpResponse = $inspector->get('http_response');
 ```
 
 ## Components

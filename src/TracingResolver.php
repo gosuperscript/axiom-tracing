@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Superscript\Axiom\Tracing;
 
-use Superscript\Axiom\ResolutionInspector;
+use Superscript\Axiom\Context;
 use Superscript\Axiom\Resolvers\BindableResolver;
 use Superscript\Axiom\Resolvers\Resolver;
 use Superscript\Axiom\Source;
@@ -29,17 +29,13 @@ final class TracingResolver implements BindableResolver
         //
         // DelegatingResolver::resolve() does NOT go through the IoC
         // Resolver binding for its own dispatch — it calls
-        // $this->container->make($resolverClass)->resolve($source)
+        // $this->container->make($resolverClass)->resolve($source, $context)
         // directly. The IoC Resolver binding is only injected into
         // child resolvers (InfixResolver, ValueResolver, etc.) when
         // they are constructed via the container. Those resolvers then
         // call $this->resolver->resolve() for recursive resolution,
         // which hits this TracingResolver. No infinite recursion.
         $this->inner->instance(Resolver::class, $this);
-
-        // Replace any existing ResolutionInspector with our tree-aware
-        // version. Resolver annotations now land on trace nodes.
-        $this->inner->instance(ResolutionInspector::class, $this->inspector);
     }
 
     /** @param class-string $key */
@@ -70,12 +66,23 @@ final class TracingResolver implements BindableResolver
         $this->onTrace = $callback;
     }
 
-    public function resolve(Source $source): Result
+    public function resolve(Source $source, Context $context): Result
     {
         $isRoot = $this->depth === 0;
 
         if ($isRoot) {
             $this->root = null;
+
+            // At the root, swap in our tree-aware inspector so resolver
+            // annotations land on trace nodes. Recursive calls will
+            // propagate this context down unchanged.
+            if ($context->inspector !== $this->inspector) {
+                $context = new Context(
+                    bindings: $context->bindings,
+                    definitions: $context->definitions,
+                    inspector: $this->inspector,
+                );
+            }
         }
 
         $this->depth++;
@@ -99,13 +106,13 @@ final class TracingResolver implements BindableResolver
         $this->inspector->setCurrent($node);
 
         // Delegate to the real resolver chain.
-        // $this->inner->resolve($source) is a direct method call on
-        // the DelegatingResolver instance — it does NOT go through
-        // the IoC binding (which points back to us). The IoC binding
-        // is only used when child resolvers internally call
+        // $this->inner->resolve($source, $context) is a direct method call
+        // on the DelegatingResolver instance — it does NOT go through the
+        // IoC binding (which points back to us). The IoC binding is only
+        // used when child resolvers internally call
         // $this->resolver->resolve() for recursive resolution.
         $start = microtime(true);
-        $result = $this->inner->resolve($source);
+        $result = $this->inner->resolve($source, $context);
         $duration = (microtime(true) - $start) * 1000;
 
         // Generic metadata — captured for every node automatically
@@ -149,8 +156,10 @@ final class TracingResolver implements BindableResolver
     /**
      * Explicit entry point for when you want the trace returned directly.
      */
-    public function traced(Source $source): TracedResult
+    public function traced(Source $source, ?Context $context = null): TracedResult
     {
+        $context ??= new Context();
+
         // Temporarily capture the trace via onTrace
         $captured = null;
         $previousCallback = $this->onTrace;
@@ -159,7 +168,7 @@ final class TracingResolver implements BindableResolver
             $captured = $traced;
         };
 
-        $result = $this->resolve($source);
+        $result = $this->resolve($source, $context);
 
         $this->onTrace = $previousCallback;
 
