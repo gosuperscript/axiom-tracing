@@ -4,41 +4,34 @@ declare(strict_types=1);
 
 namespace Superscript\Axiom\Tracing\Tests;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Superscript\Axiom\Tracing\ResolutionTrace;
 use Superscript\Axiom\Tracing\TracedResult;
 
 use function Superscript\Monads\Option\Some;
 use function Superscript\Monads\Result\Ok;
 
+#[CoversClass(TracedResult::class)]
 final class TracedResultTest extends TestCase
 {
-    public function test_exposes_result_and_trace(): void
+    public function test_exposes_result_and_log(): void
     {
         $result = Ok(Some(42));
-        $trace = new ResolutionTrace('TestSource');
+        $log = ['label' => ['static(int)'], 'result' => [42]];
 
-        $traced = new TracedResult($result, $trace);
+        $traced = new TracedResult($result, $log);
 
         $this->assertSame($result, $traced->result);
-        $this->assertSame($trace, $traced->trace);
+        $this->assertSame($log, $traced->log);
     }
 
-    public function test_dump_returns_formatted_string(): void
+    public function test_dump_formats_the_flat_log(): void
     {
-        $trace = new ResolutionTrace('App\\Sources\\StaticSource');
-        $trace->addMetadata('label', 'static(int)');
-        $trace->addMetadata('outcome', 'ok');
-        $trace->addMetadata('value', 42);
-        $trace->addMetadata('has_value', true);
-        $trace->addMetadata('duration_ms', 0.01);
+        $traced = new TracedResult(Ok(Some(42)), [
+            'label' => ['static(int)'],
+            'result' => [42],
+        ]);
 
-        $traced = new TracedResult(Ok(Some(42)), $trace);
-
-        $dump = $traced->dump();
-
-        $this->assertIsString($dump);
-        $this->assertStringContainsString('StaticSource', $dump);
-        $this->assertStringContainsString('[static(int)]', $dump);
+        $this->assertSame("label: static(int)\nresult: 42", $traced->dump());
     }
 }

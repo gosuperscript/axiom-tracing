@@ -7,20 +7,26 @@ namespace Superscript\Axiom\Tracing;
 use Superscript\Monads\Result\Result;
 
 /**
- * Pairs a resolution Result with its trace tree.
+ * Pairs a compiled {@see \Superscript\Axiom\Program}'s invocation Result with
+ * the flat annotation log its evaluation emitted (a {@see ResolutionContext}
+ * snapshot, `array<string, list<mixed>>`).
  */
 final readonly class TracedResult
 {
+    /**
+     * @param Result<\Superscript\Monads\Option\Option<mixed>, \Throwable> $result
+     * @param array<string, list<mixed>> $log
+     */
     public function __construct(
         public Result $result,
-        public ResolutionTrace $trace,
+        public array $log,
     ) {}
 
     /**
-     * Render the trace as a readable string.
+     * Render the annotation log as a readable, order-preserving string.
      */
     public function dump(): string
     {
-        return (new TraceFormatter())->format($this->trace);
+        return (new TraceFormatter())->format($this->log);
     }
 }

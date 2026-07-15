@@ -4,93 +4,49 @@ declare(strict_types=1);
 
 namespace Superscript\Axiom\Tracing;
 
+/**
+ * Renders the flat annotation log a compiled program emits during evaluation
+ * — the {@see ResolutionContext} store, as returned by `all()`/`flush()` —
+ * into a readable, order-preserving list.
+ *
+ * The log is `array<string, list<mixed>>`: keys in the order they were first
+ * annotated, and each key's values in the order they were recorded. One line
+ * is produced per recorded value:
+ *
+ * ```
+ * memo: miss
+ * label: base
+ * result: 3
+ * label: static(int)
+ * ```
+ *
+ * Value rendering: booleans as `true`/`false`, strings verbatim (unquoted),
+ * everything else json-encoded.
+ */
 final class TraceFormatter
 {
-    public function format(ResolutionTrace $trace): string
+    /**
+     * @param array<string, list<mixed>> $log
+     */
+    public function format(array $log): string
     {
-        return $this->formatNode($trace, '', true);
-    }
+        $lines = [];
 
-    private function formatNode(
-        ResolutionTrace $node,
-        string $prefix,
-        bool $isLast,
-    ): string {
-        $connector = $prefix === '' ? '' : ($isLast ? '└── ' : '├── ');
-
-        // Build the main line: SourceType [label] — outcome, value, duration
-        $line = $connector . $this->shortName($node->sourceType);
-
-        if ($node->label() !== null) {
-            $line .= " [{$node->label()}]";
-        }
-
-        $line .= $this->formatSummary($node);
-
-        $lines = [$prefix . $line];
-
-        // Add non-generic metadata (skip the ones already in the summary)
-        $genericKeys = ['label', 'timestamp', 'duration_ms', 'outcome', 'has_value', 'value', 'error'];
-
-        foreach ($node->metadata() as $key => $value) {
-            if (in_array($key, $genericKeys, true)) {
-                continue;
+        foreach ($log as $key => $values) {
+            foreach ($values as $value) {
+                $lines[] = $key . ': ' . $this->render($value);
             }
-
-            $childPrefix = $prefix . ($isLast ? '    ' : '│   ');
-            $formatted = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_SLASHES);
-            $lines[] = $childPrefix . "{$key}: {$formatted}";
-        }
-
-        // Add children
-        $children = $node->children();
-        $childCount = count($children);
-
-        foreach ($children as $i => $child) {
-            $childPrefix = $prefix . ($isLast ? '    ' : '│   ');
-            $childIsLast = ($i === $childCount - 1);
-            $lines[] = $this->formatNode($child, $childPrefix, $childIsLast);
         }
 
         return implode("\n", $lines);
     }
 
-    private function formatSummary(ResolutionTrace $node): string
+    private function render(mixed $value): string
     {
-        $parts = [];
-        $meta = $node->metadata();
-
-        if (isset($meta['outcome'])) {
-            $parts[] = $meta['outcome'];
-        }
-
-        if (isset($meta['value'])) {
-            $value = $meta['value'];
-            $display = match (true) {
-                is_bool($value) => $value ? 'true' : 'false',
-                is_string($value), is_int($value), is_float($value) => (string) $value,
-                default => get_debug_type($value),
-            };
-            $parts[] = "value: {$display}";
-        }
-
-        if (isset($meta['error'])) {
-            $parts[] = "error: {$meta['error']}";
-        }
-
-        if (isset($meta['duration_ms'])) {
-            $duration = $meta['duration_ms'];
-            $formatted = $duration >= 1 ? round($duration) . 'ms' : round($duration, 3) . 'ms';
-            $parts[] = $formatted;
-        }
-
-        return $parts !== [] ? ' — ' . implode(', ', $parts) : '';
-    }
-
-    private function shortName(string $fqcn): string
-    {
-        $parts = explode('\\', $fqcn);
-
-        return end($parts);
+        return match (true) {
+            is_bool($value) => $value ? 'true' : 'false',
+            is_string($value) => $value,
+            default => (string) json_encode($value, JSON_UNESCAPED_SLASHES),
+        };
     }
 }
