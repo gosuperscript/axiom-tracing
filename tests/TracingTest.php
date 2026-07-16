@@ -5,61 +5,62 @@ declare(strict_types=1);
 namespace Superscript\Axiom\Tracing\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Superscript\Axiom\Context;
-use Superscript\Axiom\Resolvers\DelegatingResolver;
-use Superscript\Axiom\Resolvers\StaticResolver;
+use Superscript\Axiom\Expression;
+use Superscript\Axiom\Program;
+use Superscript\Axiom\Sources\InfixExpression;
 use Superscript\Axiom\Sources\StaticSource;
+use Superscript\Axiom\Sources\SymbolSource;
 use Superscript\Axiom\Tracing\Tracing;
-use Superscript\Axiom\Tracing\TracingResolver;
+use Superscript\Axiom\Types\NumberType;
 
 final class TracingTest extends TestCase
 {
-    public function test_wrap_with_enabled_false_returns_original_resolver(): void
+    public function test_run_returns_the_result_and_complete_execution_tree(): void
     {
-        $delegating = new DelegatingResolver([
-            StaticSource::class => StaticResolver::class,
-        ]);
+        $program = (new Expression(new InfixExpression(
+            new StaticSource(10),
+            '+',
+            new StaticSource(20),
+        )))->compile()->unwrap();
 
-        $result = Tracing::wrap($delegating, enabled: false);
+        $traced = Tracing::run($program);
 
-        $this->assertSame($delegating, $result);
-        $this->assertNotInstanceOf(TracingResolver::class, $result);
+        $this->assertSame(30, $traced->result->unwrap()->unwrap());
+        $this->assertSame(InfixExpression::class, $traced->trace->node->sourceType);
+        $this->assertSame('+', $traced->trace->label());
+        $this->assertSame('ok', $traced->trace->outcome());
+        $this->assertSame(30, $traced->trace->value());
+        $this->assertCount(2, $traced->trace->children());
+        $this->assertSame(StaticSource::class, $traced->trace->children()[0]->node->sourceType);
+        $this->assertSame(10, $traced->trace->children()[0]->value());
+        $this->assertSame(20, $traced->trace->children()[1]->value());
     }
 
-    public function test_wrap_with_enabled_true_returns_tracing_resolver(): void
+    public function test_each_run_gets_an_independent_collector(): void
     {
-        $delegating = new DelegatingResolver([
-            StaticSource::class => StaticResolver::class,
-        ]);
+        $program = (new Expression(new StaticSource(1)))->compile()->unwrap();
 
-        $result = Tracing::wrap($delegating, enabled: true);
+        $first = Tracing::run($program);
+        $second = Tracing::run($program);
 
-        $this->assertInstanceOf(TracingResolver::class, $result);
+        $this->assertNotSame($first->trace, $second->trace);
+        $this->assertSame($first->result->unwrap()->unwrap(), $second->result->unwrap()->unwrap());
     }
 
-    public function test_wrap_default_is_disabled(): void
+    public function test_a_boundary_refusal_is_represented_before_evaluation_starts(): void
     {
-        $delegating = new DelegatingResolver([
-            StaticSource::class => StaticResolver::class,
-        ]);
+        $program = (new Expression(
+            new SymbolSource('amount'),
+            declarations: ['amount' => new NumberType],
+        ))->compile()->unwrap();
 
-        $result = Tracing::wrap($delegating);
+        $traced = Tracing::run($program);
 
-        $this->assertSame($delegating, $result);
-    }
-
-    public function test_zero_overhead_when_disabled(): void
-    {
-        $delegating = new DelegatingResolver([
-            StaticSource::class => StaticResolver::class,
-        ]);
-
-        $resolver = Tracing::wrap($delegating, enabled: false);
-
-        // Should work normally — no tracing overhead
-        $result = $resolver->resolve(new StaticSource(42), new Context());
-
-        $this->assertTrue($result->isOk());
-        $this->assertSame(42, $result->unwrap()->unwrap());
+        $this->assertTrue($traced->result->isErr());
+        $this->assertSame(Program::class, $traced->trace->node->sourceType);
+        $this->assertSame('err', $traced->trace->outcome());
+        $this->assertNotNull($traced->trace->error());
+        $this->assertStringContainsString('required input [amount] is missing', $traced->trace->error());
+        $this->assertSame([], $traced->trace->children());
     }
 }

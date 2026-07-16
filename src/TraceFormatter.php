@@ -6,91 +6,89 @@ namespace Superscript\Axiom\Tracing;
 
 final class TraceFormatter
 {
-    public function format(ResolutionTrace $trace): string
+    public function format(ExecutionTrace $trace): string
     {
-        return $this->formatNode($trace, '', true);
+        return implode("\n", $this->lines($trace));
     }
 
-    private function formatNode(
-        ResolutionTrace $node,
-        string $prefix,
-        bool $isLast,
-    ): string {
-        $connector = $prefix === '' ? '' : ($isLast ? '└── ' : '├── ');
+    /** @return list<string> */
+    private function lines(ExecutionTrace $trace, string $prefix = '', ?bool $last = null): array
+    {
+        $connector = match ($last) {
+            null => '',
+            true => '└── ',
+            false => '├── ',
+        };
+        $lines = [$prefix.$connector.$this->summary($trace)];
+        $indent = $prefix.match ($last) {
+            false => '│   ',
+            default => '    ',
+        };
 
-        // Build the main line: SourceType [label] — outcome, value, duration
-        $line = $connector . $this->shortName($node->sourceType);
-
-        if ($node->label() !== null) {
-            $line .= " [{$node->label()}]";
-        }
-
-        $line .= $this->formatSummary($node);
-
-        $lines = [$prefix . $line];
-
-        // Add non-generic metadata (skip the ones already in the summary)
-        $genericKeys = ['label', 'timestamp', 'duration_ms', 'outcome', 'has_value', 'value', 'error'];
-
-        foreach ($node->metadata() as $key => $value) {
-            if (in_array($key, $genericKeys, true)) {
+        foreach ($trace->annotations() as $annotation) {
+            if ($annotation['key'] === 'label') {
                 continue;
             }
 
-            $childPrefix = $prefix . ($isLast ? '    ' : '│   ');
-            $formatted = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_SLASHES);
-            $lines[] = $childPrefix . "{$key}: {$formatted}";
+            $lines[] = $indent.$annotation['key'].': '.$this->display($annotation['value']);
         }
 
-        // Add children
-        $children = $node->children();
-        $childCount = count($children);
+        $children = $trace->children();
 
-        foreach ($children as $i => $child) {
-            $childPrefix = $prefix . ($isLast ? '    ' : '│   ');
-            $childIsLast = ($i === $childCount - 1);
-            $lines[] = $this->formatNode($child, $childPrefix, $childIsLast);
+        foreach ($children as $index => $child) {
+            $lines = [
+                ...$lines,
+                ...$this->lines($child, $indent, $index === array_key_last($children)),
+            ];
         }
 
-        return implode("\n", $lines);
+        return $lines;
     }
 
-    private function formatSummary(ResolutionTrace $node): string
+    private function summary(ExecutionTrace $trace): string
     {
-        $parts = [];
-        $meta = $node->metadata();
+        $summary = $this->shortName($trace->node->sourceType);
+        $label = $trace->label();
 
-        if (isset($meta['outcome'])) {
-            $parts[] = $meta['outcome'];
+        if ($label !== null) {
+            $summary .= " [{$label}]";
         }
 
-        if (isset($meta['value'])) {
-            $value = $meta['value'];
-            $display = match (true) {
-                is_bool($value) => $value ? 'true' : 'false',
-                is_string($value), is_int($value), is_float($value) => (string) $value,
-                default => get_debug_type($value),
-            };
-            $parts[] = "value: {$display}";
-        }
+        $details = array_filter([
+            $trace->outcome(),
+            $trace->hasValue() ? 'value: '.$this->display($trace->value()) : null,
+            $trace->error() === null ? null : 'error: '.$trace->error(),
+            $trace->durationMs() === null ? null : $this->duration($trace->durationMs()),
+        ], static fn (?string $detail): bool => $detail !== null);
 
-        if (isset($meta['error'])) {
-            $parts[] = "error: {$meta['error']}";
-        }
-
-        if (isset($meta['duration_ms'])) {
-            $duration = $meta['duration_ms'];
-            $formatted = $duration >= 1 ? round($duration) . 'ms' : round($duration, 3) . 'ms';
-            $parts[] = $formatted;
-        }
-
-        return $parts !== [] ? ' — ' . implode(', ', $parts) : '';
+        return $details === [] ? $summary : $summary.' — '.implode(', ', $details);
     }
 
-    private function shortName(string $fqcn): string
+    private function display(mixed $value): string
     {
-        $parts = explode('\\', $fqcn);
+        return match (true) {
+            is_bool($value) => $value ? 'true' : 'false',
+            is_string($value), is_int($value), is_float($value) => (string) $value,
+            default => $this->encode($value),
+        };
+    }
 
-        return end($parts);
+    private function encode(mixed $value): string
+    {
+        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES);
+
+        return $encoded === false ? get_debug_type($value) : $encoded;
+    }
+
+    private function duration(float $duration): string
+    {
+        return ($duration >= 1 ? round($duration) : round($duration, 3)).'ms';
+    }
+
+    private function shortName(string $class): string
+    {
+        $segments = explode('\\', $class);
+
+        return end($segments);
     }
 }

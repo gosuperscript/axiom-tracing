@@ -1,6 +1,14 @@
 # axiom-tracing
 
-Opt-in resolution tracing for [gosuperscript/axiom](https://github.com/gosuperscript/axiom). Decorates `DelegatingResolver` to build a tree-shaped trace that mirrors the recursive resolution call stack, capturing timing, outcomes, and resolver-contributed metadata on each node.
+Opt-in execution tracing for [gosuperscript/axiom](https://github.com/gosuperscript/axiom).
+
+The package runs a compiled `Program` with an invocation-scoped observer and turns Axiom's ordered node lifecycle into a trace tree. Every evaluated source node records its source class, certified return type, annotations, outcome, value or error, and duration.
+
+## Requirements
+
+- PHP ^8.4
+- gosuperscript/axiom 0.x-dev
+- gosuperscript/monads ^1.0
 
 ## Installation
 
@@ -8,112 +16,111 @@ Opt-in resolution tracing for [gosuperscript/axiom](https://github.com/gosupersc
 composer require gosuperscript/axiom-tracing
 ```
 
-Requires `gosuperscript/axiom ^0.4.0`.
-
 ## Usage
 
-### Conditional tracing with callback
+Compile normally, then pass the `Program` to `Tracing::run()`:
 
 ```php
-use Superscript\Axiom\Context;
-use Superscript\Axiom\Resolvers\DelegatingResolver;
-use Superscript\Axiom\Tracing\Tracing;
-use Superscript\Axiom\Tracing\TracedResult;
-use Superscript\Axiom\Tracing\TracingResolver;
-
-$resolver = Tracing::wrap(
-    new DelegatingResolver([...]),
-    enabled: config('axiom.tracing', false),
-);
-
-// Register a callback — fires on every top-level resolution
-if ($resolver instanceof TracingResolver) {
-    $resolver->onTrace(function (TracedResult $traced) {
-        Log::debug('Axiom resolution', ['trace' => $traced->dump()]);
-    });
-}
-
-// Calling code is unchanged — resolve takes a Source and a Context.
-$result = $resolver->resolve($source, new Context());
-```
-
-### Tracing an Expression
-
-```php
+use Superscript\Axiom\Definitions;
 use Superscript\Axiom\Expression;
+use Superscript\Axiom\Sources\Coerce;
+use Superscript\Axiom\Sources\InfixExpression;
+use Superscript\Axiom\Sources\StaticSource;
+use Superscript\Axiom\Sources\SymbolSource;
+use Superscript\Axiom\Tracing\Tracing;
+use Superscript\Axiom\Types\NumberType;
 
-$expression = new Expression($source, $resolver);
-$result = $expression(['radius' => 5]); // fires the trace callback
+$program = (new Expression(
+    source: new InfixExpression(
+        new SymbolSource('base'),
+        '*',
+        new Coerce(new NumberType(), new StaticSource('4')),
+    ),
+    definitions: new Definitions(['base' => new StaticSource(3)]),
+))->compile()->unwrap();
+
+$traced = Tracing::run($program);
+
+$traced->result->unwrap()->unwrap(); // 12
+echo $traced->dump();
 ```
 
-### Explicit trace retrieval
+The dump is a real evaluation tree, not a grouped annotation log:
+
+```text
+InfixExpression [*] — ok, value: 12, 0.1ms
+    left: 3
+    right: 4
+    result: 12
+    ├── SymbolSource [base] — ok, value: 3, 0.02ms
+    │   memo: miss
+    │   result: 3
+    │   └── StaticSource [static(int)] — ok, value: 3, 0.005ms
+    └── Coerce [Number] — ok, value: 4, 0.02ms
+        coercion: string -> int
+        └── StaticSource [static(string)] — ok, value: 4, 0.005ms
+```
+
+Durations vary by invocation.
+
+Bindings are the optional second argument:
 
 ```php
-use Superscript\Axiom\Context;
-use Superscript\Axiom\Tracing\TracingResolver;
-
-$tracer = new TracingResolver($delegatingResolver);
-
-$traced = $tracer->traced($source); // optionally pass a Context with bindings/definitions
-$traced->result;  // Result<Option<T>>
-$traced->trace;   // ResolutionTrace tree
-$traced->dump();  // formatted string
+$traced = Tracing::run($program, ['amount' => '12']);
 ```
 
-### Extracting metadata from a trace
-
-```php
-// Collect all values for a key across the entire tree
-$httpExchanges = $traced->trace->collect('http_response');
-
-// Walk the tree manually
-foreach ($traced->trace->children() as $child) {
-    $child->getMetadata('http_response');
-}
-```
-
-### Production use (flat inspector, no tracing)
-
-For extracting resolver metadata without full tracing overhead, pass a flat
-inspector via the `Context`:
-
-```php
-use Superscript\Axiom\Context;
-use Superscript\Axiom\Tracing\ResolutionContext;
-
-$inspector = new ResolutionContext();
-
-$result = $resolver->resolve($source, new Context(inspector: $inspector));
-$httpResponse = $inspector->get('http_response');
-```
-
-## Components
+## API
 
 | Component | Purpose |
 |---|---|
-| `ResolutionContext` | Flat key-value `ResolutionInspector` for production metadata extraction |
-| `ResolutionTrace` | Tree node with children, metadata, and recursive `collect()` |
-| `TracingResolutionInspector` | Tree-aware inspector routing annotations to the current trace node |
-| `TracingResolver` | Decorator intercepting every `resolve()` call to build the trace tree |
-| `TracedResult` | Pairs a `Result` with its `ResolutionTrace` tree |
-| `TraceFormatter` | Renders trace trees as human-readable indented strings |
-| `Tracing` | Factory with `wrap()` for conditional decoration |
+| `Tracing::run(Program, bindings)` | Runs one invocation and returns its result with a fresh trace |
+| `TracedResult` | Pairs the unchanged Axiom `Result` with the root `ExecutionTrace` |
+| `ExecutionTrace` | One source node: children, ordered annotations, timing, outcome, value, and error |
+| `TraceCollector` | The reusable low-level implementation of Axiom's `Execution\Observer` |
+| `TraceFormatter` | Renders an `ExecutionTrace` as a readable tree |
 
-## Example output
+Repeated annotations retain their emission order:
 
-```
-TypeDefinition [NumberType] — ok, value: 150, 52ms
-└── InfixExpression [*] — ok, value: 150, 51ms
-    ├── SymbolSource [base_rate] — ok, value: 100, 3ms
-    │   └── StaticSource [static(int)] — ok, value: 100, 0.01ms
-    └── InfixExpression [+] — ok, value: 1.5, 45ms
-        ├── StaticSource [static(float)] — ok, value: 0.5, 0.01ms
-        └── StaticSource [static(int)] — ok, value: 1, 0.01ms
+```php
+$trace->get('label');       // last value for this node
+$trace->all('result');      // every result annotation on this node
+$trace->collect('result');  // result annotations from the whole subtree
+$trace->annotations();      // globally ordered within this node
+$trace->children();
 ```
 
-## Testing
+The generic lifecycle data has dedicated accessors: `outcome()`, `durationMs()`, `hasValue()`, `value()`, and `error()`. The underlying Axiom node descriptor is available as `$trace->node`, including `$trace->node->sourceType` and `$trace->node->returns`.
 
-```bash
-composer install
-vendor/bin/phpunit
+## Invocation scope
+
+Tracing state is never attached to a serializable `Source`, an `Expression`, or a compiled `Program`. `Tracing::run()` creates a fresh collector and passes it only to that call, so sequential or concurrent invocations cannot share a trace accidentally.
+
+A boundary admission error happens before compiled source evaluation begins. It is represented as a single `Program` trace node with an `err` outcome. A host exception is still rethrown, preserving `Program` semantics. To inspect such a partial trace, use the collector directly:
+
+```php
+use Superscript\Axiom\Tracing\TraceCollector;
+
+$collector = new TraceCollector();
+
+try {
+    $program->call($bindings, observer: $collector);
+} finally {
+    $partialTrace = $collector->trace();
+}
 ```
+
+## Extension annotations
+
+Core and host source compilers annotate the node currently being evaluated through `Runtime::annotate()`:
+
+```php
+return new CompiledNode($returnType, function (Runtime $runtime) use ($service) {
+    $value = $service->lookup();
+    $runtime->annotate('cache', 'miss');
+    $runtime->annotate('result', $value);
+
+    return Ok(Some($value));
+});
+```
+
+Because Axiom wraps every `CompiledNode` with the source identity at compile time, host source compilers participate automatically; they do not need tracing-specific integration.

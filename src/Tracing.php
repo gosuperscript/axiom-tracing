@@ -4,23 +4,25 @@ declare(strict_types=1);
 
 namespace Superscript\Axiom\Tracing;
 
-use Superscript\Axiom\Resolvers\BindableResolver;
+use Superscript\Axiom\Execution\Node;
+use Superscript\Axiom\Program;
 
 final class Tracing
 {
-    /**
-     * Wrap a BindableResolver with tracing if enabled.
-     * If disabled, returns the resolver untouched — no decorator,
-     * no bindings, no overhead.
-     */
-    public static function wrap(
-        BindableResolver $resolver,
-        bool $enabled = false,
-    ): BindableResolver {
-        if (! $enabled) {
-            return $resolver;
+    /** @param array<string, mixed> $bindings */
+    public static function run(Program $program, array $bindings = []): TracedResult
+    {
+        $startedAt = microtime(true);
+        $collector = new TraceCollector;
+        $result = $program->call($bindings, $collector);
+        $trace = $collector->trace();
+
+        if ($trace === null) {
+            // Boundary admission can refuse before compiled evaluation starts.
+            $trace = new ExecutionTrace(new Node(Program::class, $program->returns), $startedAt);
+            $trace->complete($result, microtime(true));
         }
 
-        return new TracingResolver($resolver);
+        return new TracedResult($result, $trace);
     }
 }
