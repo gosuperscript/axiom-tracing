@@ -4,29 +4,20 @@ declare(strict_types=1);
 
 namespace Superscript\Axiom\Tracing;
 
+use Superscript\Monads\Option\Option;
 use Superscript\Monads\Result\Result;
+use Throwable;
 
-/**
- * Pairs a compiled {@see \Superscript\Axiom\Program}'s invocation Result with
- * the flat annotation log its evaluation emitted (a {@see ResolutionContext}
- * snapshot, `array<string, list<mixed>>`).
- */
 final readonly class TracedResult
 {
-    /**
-     * @param Result<\Superscript\Monads\Option\Option<mixed>, \Throwable> $result
-     * @param array<string, list<mixed>> $log
-     */
+    /** @param Result<Option<mixed>, Throwable> $result */
     public function __construct(
         public Result $result,
-        public array $log,
+        public ExecutionTrace $trace,
     ) {}
 
-    /**
-     * Render the annotation log as a readable, order-preserving string.
-     */
     public function dump(): string
     {
-        return (new TraceFormatter())->format($this->log);
+        return (new TraceFormatter)->format($this->trace);
     }
 }

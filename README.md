@@ -1,20 +1,14 @@
 # axiom-tracing
 
-Opt-in resolution tracing for [gosuperscript/axiom](https://github.com/gosuperscript/axiom). Collects the flat annotation log a compiled Axiom `Program` emits while it evaluates, and renders it as a readable list.
+Opt-in execution tracing for [gosuperscript/axiom](https://github.com/gosuperscript/axiom).
 
-## What changed in this version
-
-Axiom pivoted from a value-directed runtime to a compile-then-run typed model. There is no longer a `Resolver` interface, no `Context`, no PSR-11 container, and — crucially — **no per-node dispatch**: `Program::__invoke()` runs one precompiled closure, so there is no per-`Source` call boundary to intercept and no call tree to reconstruct.
-
-The old resolver-interception tracer (`TracingResolver`, `Tracing::wrap`) depended on all of that and has been removed. The one observability primitive that survived the pivot is `ResolutionInspector::annotate(string $key, mixed $value): void`. A host attaches an inspector to an `Expression` before compiling; during evaluation, core's compiled nodes call `$runtime->inspector?->annotate(...)`. The calls are a **flat `(key, value)` stream** — not a tree.
-
-This package is now that inspector, plus formatting.
+The package runs a compiled `Program` with an invocation-scoped observer and turns Axiom's ordered node lifecycle into a trace tree. Every evaluated source node records its source class, certified return type, annotations, outcome, value or error, and duration.
 
 ## Requirements
 
 - PHP ^8.4
-- [gosuperscript/axiom](https://github.com/gosuperscript/axiom) ^0.5.0
-- [gosuperscript/monads](https://github.com/gosuperscript/monads) ^1.0
+- gosuperscript/axiom 0.x-dev
+- gosuperscript/monads ^1.0
 
 ## Installation
 
@@ -24,7 +18,7 @@ composer require gosuperscript/axiom-tracing
 
 ## Usage
 
-Build an `Expression`, attach a `ResolutionContext` inspector with `->withInspector(...)`, compile, invoke the `Program`, then read the annotation log its evaluation emitted.
+Compile normally, then pass the `Program` to `Tracing::run()`:
 
 ```php
 use Superscript\Axiom\Definitions;
@@ -33,12 +27,9 @@ use Superscript\Axiom\Sources\Coerce;
 use Superscript\Axiom\Sources\InfixExpression;
 use Superscript\Axiom\Sources\StaticSource;
 use Superscript\Axiom\Sources\SymbolSource;
-use Superscript\Axiom\Tracing\ResolutionContext;
+use Superscript\Axiom\Tracing\Tracing;
 use Superscript\Axiom\Types\NumberType;
 
-$context = new ResolutionContext();
-
-// base * (int) '4', where `base` is a definition.
 $program = (new Expression(
     source: new InfixExpression(
         new SymbolSource('base'),
@@ -46,73 +37,90 @@ $program = (new Expression(
         new Coerce(new NumberType(), new StaticSource('4')),
     ),
     definitions: new Definitions(['base' => new StaticSource(3)]),
-))
-    ->withInspector($context)
-    ->compile()
-    ->unwrap();
+))->compile()->unwrap();
 
-$result = $program(); // 12
+$traced = Tracing::run($program);
 
-// Read the annotation log the compiled program emitted.
-$context->get('label');    // '*'          — last value recorded for a key
-$context->all('memo');     // ['miss']     — every value for a key, in order
-$context->get('coercion'); // 'string -> int'
+$traced->result->unwrap()->unwrap(); // 12
+echo $traced->dump();
 ```
 
-`ResolutionContext` is a flat, multi-value store keyed by annotation name:
+The dump is a real evaluation tree, not a grouped annotation log:
 
-| Method | Purpose |
-|---|---|
-| `annotate($key, $value)` | Record a value (called by core during evaluation) |
-| `get($key)` | The last value recorded for a key, or `null` |
-| `all($key)` | Every value recorded for a key, in order |
-| `flush()` | Return the whole log (`array<string, list<mixed>>`) and clear it |
-| `reset()` | Clear the log without returning it |
+```text
+InfixExpression [*] — ok, value: 12, 0.1ms
+    left: 3
+    right: 4
+    result: 12
+    ├── SymbolSource [base] — ok, value: 3, 0.02ms
+    │   memo: miss
+    │   result: 3
+    │   └── StaticSource [static(int)] — ok, value: 3, 0.005ms
+    └── Coerce [Number] — ok, value: 4, 0.02ms
+        coercion: string -> int
+        └── StaticSource [static(string)] — ok, value: 4, 0.005ms
+```
 
-Order is preserved **within each key** and across keys in first-seen order. The store groups by key, so it does not preserve the global interleaving of the emission stream — `all('result')` gives you every result in evaluation order, but results and labels are not interleaved with one another.
+Durations vary by invocation.
 
-### Pairing a result with its log, and formatting
-
-`TracedResult` pairs a program's `Result` with a snapshot of the log, and `dump()` renders it via `TraceFormatter`:
+Bindings are the optional second argument:
 
 ```php
-use Superscript\Axiom\Tracing\TracedResult;
-
-$traced = new TracedResult($result, $context->flush());
-
-echo $traced->dump();
-// memo: miss
-// label: static(int)
-// label: base
-// label: static(string)
-// label: Number
-// label: *
-// result: 3
-// result: 12
-// coercion: string -> int
-// left: 3
-// right: 4
+$traced = Tracing::run($program, ['amount' => '12']);
 ```
 
-`TraceFormatter` renders any log (`array<string, list<mixed>>`) as one `key: value` line per recorded value, grouped by key in first-seen order. Booleans render as `true`/`false`, strings verbatim, everything else json-encoded.
-
-## Annotation keys emitted by core
-
-The keys and values are core's, not this package's. As of Axiom 0.5.0 they include:
-
-| Key | Emitted by | Example value |
-|---|---|---|
-| `memo` | definition slot memoization | `miss`, `hit` |
-| `label` | most nodes | `base`, `*`, `static(int)`, `Number`, `match` |
-| `result` | evaluated nodes | the produced value |
-| `left`, `right` | infix operators | operand values |
-| `coercion` | boundary coercion | `string -> int` |
-| `subject`, `matched_arm` | match expressions | the subject value, the arm index |
-
-## Components
+## API
 
 | Component | Purpose |
 |---|---|
-| `ResolutionContext` | The `ResolutionInspector` a host attaches to an `Expression`; a flat, multi-value annotation store |
-| `TraceFormatter` | Renders a flat annotation log as a readable, order-preserving list |
-| `TracedResult` | Pairs a program's `Result` with a snapshot of the annotation log |
+| `Tracing::run(Program, bindings)` | Runs one invocation and returns its result with a fresh trace |
+| `TracedResult` | Pairs the unchanged Axiom `Result` with the root `ExecutionTrace` |
+| `ExecutionTrace` | One source node: children, ordered annotations, timing, outcome, value, and error |
+| `TraceCollector` | The reusable low-level implementation of Axiom's `Execution\Observer` |
+| `TraceFormatter` | Renders an `ExecutionTrace` as a readable tree |
+
+Repeated annotations retain their emission order:
+
+```php
+$trace->get('label');       // last value for this node
+$trace->all('result');      // every result annotation on this node
+$trace->collect('result');  // result annotations from the whole subtree
+$trace->annotations();      // globally ordered within this node
+$trace->children();
+```
+
+The generic lifecycle data has dedicated accessors: `outcome()`, `durationMs()`, `hasValue()`, `value()`, and `error()`. The underlying Axiom node descriptor is available as `$trace->node`, including `$trace->node->sourceType` and `$trace->node->returns`.
+
+## Invocation scope
+
+Tracing state is never attached to a serializable `Source`, an `Expression`, or a compiled `Program`. `Tracing::run()` creates a fresh collector and passes it only to that call, so sequential or concurrent invocations cannot share a trace accidentally.
+
+A boundary admission error happens before compiled source evaluation begins. It is represented as a single `Program` trace node with an `err` outcome. A host exception is still rethrown, preserving `Program` semantics. To inspect such a partial trace, use the collector directly:
+
+```php
+use Superscript\Axiom\Tracing\TraceCollector;
+
+$collector = new TraceCollector();
+
+try {
+    $program->call($bindings, observer: $collector);
+} finally {
+    $partialTrace = $collector->trace();
+}
+```
+
+## Extension annotations
+
+Core and host source compilers annotate the node currently being evaluated through `Runtime::annotate()`:
+
+```php
+return new CompiledNode($returnType, function (Runtime $runtime) use ($service) {
+    $value = $service->lookup();
+    $runtime->annotate('cache', 'miss');
+    $runtime->annotate('result', $value);
+
+    return Ok(Some($value));
+});
+```
+
+Because Axiom wraps every `CompiledNode` with the source identity at compile time, host source compilers participate automatically; they do not need tracing-specific integration.
