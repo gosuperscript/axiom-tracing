@@ -7,7 +7,7 @@ The package runs a compiled `Program` with an invocation-scoped observer and tur
 ## Requirements
 
 - PHP ^8.4
-- gosuperscript/axiom 0.x-dev
+- gosuperscript/axiom ^0.6
 - gosuperscript/monads ^1.0
 
 ## Installation
@@ -111,16 +111,23 @@ try {
 
 ## Extension annotations
 
-Core and host source compilers annotate the node currently being evaluated through `Runtime::annotate()`:
+Core and host source compilers annotate the node currently being evaluated through `SourceEvaluation::annotate()`:
 
 ```php
-return new CompiledNode($returnType, function (Runtime $runtime) use ($service) {
-    $value = $service->lookup();
-    $runtime->annotate('cache', 'miss');
-    $runtime->annotate('result', $value);
+use Superscript\Axiom\CompiledSource;
+use Superscript\Axiom\SourceCompilation;
+use Superscript\Axiom\SourceEvaluation;
 
-    return Ok(Some($value));
-});
+private function compile(MySource $source, SourceCompilation $compilation): CompiledSource
+{
+    return $compilation->custom($returnType, function (SourceEvaluation $evaluation) use ($service) {
+        $value = $service->lookup();
+        $evaluation->annotate('cache', 'miss');
+        $evaluation->annotate('result', $value);
+
+        return $value;
+    });
+}
 ```
 
-Because Axiom wraps every `CompiledNode` with the source identity at compile time, host source compilers participate automatically; they do not need tracing-specific integration.
+Because Axiom wraps every `CompiledSource` with the source identity at compile time, host source compilers participate automatically; they do not need tracing-specific integration.
